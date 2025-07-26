@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced 3D Mobile Portfolio</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 50%, #5b2c87 100%);
+            cursor: grab;
+        }
+        
+        body.dragging {
+            cursor: grabbing;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            font-weight: 500;
+            z-index: 5;
+            display: none;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw !important;
+            height: 100vh !important;
+            display: block;
+            border-radius: 0;
+            box-shadow: none;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1.5s ease-out;
+            z-index: 1;
+        }
+        
+        canvas.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(145deg, #27ae60, #2ecc71);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 15;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            min-width: 200px;
+            text-align: center;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-10px);
+        }
+
+        /* Hacking Screen */
+        #hacking-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(45deg, #000000 0%, #0a0a0a 50%, #1a1a1a 100%);
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 9999;
+            opacity: 1;
+            transition: opacity 2.5s ease-out;
+            overflow: hidden;
+        }
+
+        #hacking-output {
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-bottom: 5px;
+            line-height: 1.4;
+            text-shadow: 0 0 10px #00ff41;
+        }
+
+        .cursor {
+            animation: blink-caret .75s step-end infinite;
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background-color: #00ff41;
+            vertical-align: middle;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        @keyframes blink-caret {
+            from, to { background-color: transparent; box-shadow: none; }
+            50% { background-color: #00ff41; box-shadow: 0 0 10px #00ff41; }
+        }
+
+        /* Controls */
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 1.5s ease-out;
+        }
+
+        #controls.visible {
+            opacity: 1;
+        }
+
+        .control-button {
+            background: linear-gradient(145deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            width: 55px;
+            height: 55px;
+            border-radius: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-button:hover {
+            background: linear-gradient(145deg, #764ba2, #667eea);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .control-button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+
+        #audioToggleButton {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            background: linear-gradient(145deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            width: 55px;
+            height: 55px;
+            border-radius: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            backdrop-filter: blur(10px);
+        }
+
+        #audioToggleButton.visible {
+            opacity: 1;
+        }
+
+        #audioToggleButton:hover {
+            background: linear-gradient(145deg, #2980b9, #3498db);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        #audio-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.8em;
+            text-align: center;
+            z-index: 10001;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+            cursor: pointer;
+            backdrop-filter: blur(20px);
+        }
+
+        #audio-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #audio-overlay button {
+            background: linear-gradient(145deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            border-radius: 20px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin-top: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        #audio-overlay button:hover {
+            background: linear-gradient(145deg, #764ba2, #667eea);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Performance indicator */
+        #fps-counter {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #00ff41;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #fps-counter.visible {
+            opacity: 1;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .control-button, #audioToggleButton {
+                width: 60px;
+                height: 60px;
+                font-size: 22px;
+            }
+            
+            #controls {
+                bottom: 20px;
+                left: 20px;
+            }
+            
+            #audioToggleButton {
+                top: 20px;
+                right: 20px;
+            }
+            
+            .notification {
+                font-size: 14px;
+                padding: 12px 18px;
+                top: 80px;
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                min-width: 250px;
+                max-width: calc(100vw - 40px);
+            }
+            
+            .notification.show {
+                transform: translateX(-50%) translateY(-10px);
+            }
+            
+            /* Improve touch targets */
+            canvas {
+                touch-action: none;
+            }
+            
+            /* Prevent text selection on mobile */
+            * {
+                -webkit-touch-callout: none;
+                -webkit-user-select: none;
+                -khtml-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
+                -webkit-tap-highlight-color: transparent;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .control-button, #audioToggleButton {
+                width: 55px;
+                height: 55px;
+                font-size: 20px;
+            }
+            
+            .notification {
+                font-size: 13px;
+                padding: 10px 16px;
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                min-width: 200px;
+                max-width: calc(100vw - 20px);
+            }
+            
+            .notification.show {
+                transform: translateX(-50%) translateY(-10px);
+            }
+        }
+
+        /* Desktop specific styles */
+        @media (min-width: 1024px) {
+            .notification {
+                left: 50%;
+                transform: translateX(-50%);
+                min-width: 300px;
+            }
+            
+            .notification.show {
+                transform: translateX(-50%) translateY(-10px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="audio-overlay">
+        <div>
+            <p>🎵 Experience Enhanced Audio</p>
+            <p style="font-size: 0.6em; opacity: 0.8;">Interactive sounds and ambient music</p>
+        </div>
+        <button id="enableAudioButton">Enable Sound Experience</button>
+    </div>
+
+    <div id="hacking-screen">
+        <pre id="hacking-output"></pre>
+        <span class="cursor"></span>
+    </div>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        Loading 3D Portfolio...
+    </div>
+    
+    <div id="notification" class="notification"></div>
+    <div id="fps-counter">FPS: 60</div>
+
+    <div id="controls">
+        <button id="resetViewButton" class="control-button" title="Reset View">🏠</button>
+        <button id="autoRotateButton" class="control-button" title="Auto Rotate">🔄</button>
+        <button id="performanceButton" class="control-button" title="Performance Info">📊</button>
+    </div>
+
+    <button id="audioToggleButton" class="control-button" title="Toggle Audio">🔊</button>
+    
+    <script>
+        // Performance monitoring
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let fps = 60;
+        
+        // Core Three.js variables
+        let scene, camera, renderer, phoneModel, screenMesh;
+        let isDragging = false;
+        let previousMouseX = 0;
+        let previousMouseY = 0;
+        let autoRotate = false;
+        let audioEnabled = true;
+        let showPerformance = false;
+
+        // Animation variables
+        let isPhoneGrowing = false;
+        const finalPhoneScale = 0.8;
+        const initialPhoneScale = 0.01;
+        const phoneGrowthSpeed = 0.008;
+
+        // Interaction variables
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let currentScreen = 'home';
+
+        // Audio variables
+        let clickSynth, transitionSynth, confirmSynth, typingSynth, growStartSynth, backgroundMusicSynth;
+        let backgroundMusicLoop;
+
+        // Enhanced color scheme
+        const phoneColors = {
+            body: 0x1a1a2e,
+            cameraBump: 0x16213e,
+            buttons: 0x0f3460,
+            screenBackground: '#0d1421',
+            wallpaper: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            accent: '#00d4ff',
+            icons: ['#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#3498db', '#e67e22']
+        };
+
+        /**
+         * Enhanced safe sound playing with better error handling
+         */
+        function safePlaySound(synth, note, duration) {
+            if (!audioEnabled || Tone.context.state !== 'running') return;
+            
+            try {
+                if (synth && synth.triggerAttackRelease) {
+                    synth.triggerAttackRelease(note, duration);
+                } else if (synth && synth.triggerAttack) {
+                    synth.triggerAttack(note);
+                    setTimeout(() => synth.triggerRelease?.(), Tone.Time(duration).toMilliseconds());
+                }
+            } catch (error) {
+                console.warn('Audio playback failed:', error);
+            }
+        }
+
+        /**
+         * Enhanced audio initialization with better synthesis
+         */
+        function initAudio() {
+            // Modern click sound
+            clickSynth = new Tone.Synth({
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.001, decay: 0.02, sustain: 0, release: 0.01 }
+            }).toDestination();
+            clickSynth.volume.value = -18;
+
+            // Smooth transition sound
+            transitionSynth = new Tone.Synth({
+                oscillator: { type: 'triangle' },
+                envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.05 }
+            }).toDestination();
+            transitionSynth.volume.value = -12;
+
+            // Clear confirmation sound
+            confirmSynth = new Tone.Synth({
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.005, decay: 0.08, sustain: 0, release: 0.02 }
+            }).toDestination();
+            confirmSynth.volume.value = -8;
+
+            // Enhanced typing sounds
+            typingSynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'triangle' },
+                envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.01 },
+                volume: -22
+            }).toDestination();
+
+            // Growth sound
+            growStartSynth = new Tone.MembraneSynth({
+                pitchDecay: 0.04,
+                octaves: 6,
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.005, decay: 0.3, sustain: 0.01, release: 0.1 },
+                volume: -12
+            }).toDestination();
+
+            // Ambient background music
+            backgroundMusicSynth = new Tone.AMSynth({
+                harmonicity: 0.5,
+                oscillator: { type: "sine" },
+                envelope: { attack: 2, decay: 1, sustain: 0.5, release: 5 },
+                modulation: { type: "square" },
+                modulationEnvelope: { attack: 0.5, decay: 0.01, sustain: 1, release: 0.5 },
+                volume: -18
+            }).toDestination();
+
+            backgroundMusicLoop = new Tone.Loop(time => {
+                backgroundMusicSynth.triggerAttack('C3', time);
+            }, '8m');
+            backgroundMusicLoop.humanize = true;
+        }
+
+        // Audio control functions
+        function playClickSound() { safePlaySound(clickSynth, 'C5', '8n'); }
+        function playTransitionSound() { safePlaySound(transitionSynth, 'C4', '4n'); }
+        function playConfirmationSound() { safePlaySound(confirmSynth, 'E5', '16n'); }
+        function playGrowStartSound() { safePlaySound(growStartSynth, 'C2', '0.5'); }
+
+        let typingSoundCounter = 0;
+        const typingNotes = ['C6', 'D6', 'E6', 'F6', 'G6'];
+        function playTypingSound() {
+            if (++typingSoundCounter % 1 === 0) {
+                const randomNote = typingNotes[Math.floor(Math.random() * typingNotes.length)];
+                safePlaySound(typingSynth, randomNote, '64n');
+            }
+        }
+
+        function startBackgroundMusic() {
+            if (audioEnabled && Tone.context.state === 'running' && backgroundMusicLoop.state !== 'started') {
+                Tone.Transport.start();
+                backgroundMusicLoop.start(Tone.now());
+            }
+        }
+
+        function stopBackgroundMusic() {
+            if (backgroundMusicLoop.state === 'started') {
+                backgroundMusicLoop.stop(Tone.now());
+                backgroundMusicSynth.triggerRelease(Tone.now());
+            }
+        }
+
+        /**
+         * Enhanced notification system
+         */
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification show ${type}`;
+            setTimeout(() => notification.classList.remove('show'), 2500);
+        }
+
+        /**
+         * Enhanced screen texture creation with better performance
+         */
+        function createScreenTexture(screenState) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 1024;
+            const context = canvas.getContext('2d');
+            
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = 'high';
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.iconRegions = {};
+
+            if (screenState === 'home') {
+                drawHomeScreen(context, canvas);
+            } else if (screenState === 'appA_about') {
+                drawAppScreen(context, canvas, 'About Me', [
+                    '👨‍💻 Mahesh Biradar',
+                    '',
+                    'Full Stack Developer passionate about creating',
+                    'innovative solutions with MERN stack, Python,',
+                    'and IoT systems. I love building scalable web',
+                    'applications and integrating software with',
+                    'real-world automation technologies.',
+                ]);
+            } else if (screenState === 'appB') {
+                drawAppScreen(context, canvas, 'Projects', [
+                    '🚀 Featured Projects',
+                    '',
+                    '💻 3D Interactive Portfolio',
+                    '   Three.js based immersive experience',
+                    '',
+                    '📱 Work Instruction System',
+                    '   Video-based training platform',
+                    '',
+                    '🛒 E-Commerce API',
+                    '   Full-stack solution with authentication',
+                ]);
+            } else if (screenState === 'appC') {
+                drawAppScreen(context, canvas, 'Technical Skills', [
+                    '⚡ Tech Stack',
+                    '',
+                    'Frontend: React • Angular • Three.js',
+                    'Backend: Node.js • Express • Flask',
+                    'Database: PostgreSQL • MongoDB',
+                    'Tools: Git • Docker • Jenkins',
+                    'IoT: Raspberry Pi • ESP32 • Arduino',
+                ]);
+            } else if (screenState === 'appD_contact') {
+                drawAppScreen(context, canvas, 'Get In Touch', [
+                    '📬 Contact Information',
+                    '',
+                    '📍 Pune, Maharashtra, India',
+                    '📧 mahesh.biradar@example.com',
+                    '',
+                    '🔗 GitHub Profile',
+                    '🔗 LinkedIn Profile',
+                    '🔗 Portfolio Website'
+                ], {
+                    'GitHub Profile': 'https://github.com/yourusername',
+                    'LinkedIn Profile': 'https://linkedin.com/in/yourprofile',
+                    'Portfolio Website': 'https://yourportfolio.com'
+                });
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function navigateToHome() {
+            currentScreen = 'home';
+            updateScreenTexture();
+            showNotification('Returned to Home Screen', 'success');
+            playTransitionSound();
+        }
+
+        function drawHomeScreen(context, canvas) {
+            // Enhanced gradient wallpaper
+            const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(0.5, '#764ba2');
+            gradient.addColorStop(1, '#5b2c87');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Subtle pattern overlay
+            context.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            for (let i = 0; i < 30; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const radius = Math.random() * 2 + 1;
+                context.beginPath();
+                context.arc(x, y, radius, 0, Math.PI * 2);
+                context.fill();
+            }
+
+            drawStatusBar(context, canvas);
+            drawClockAndDate(context, canvas);
+            drawAppGrid(context, canvas);
+            drawDock(context, canvas);
+        }
+
+        function drawStatusBar(context, canvas) {
+            const statusHeight = 60;
+            context.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            context.fillRect(0, 0, canvas.width, statusHeight);
+
+            context.fillStyle = '#FFFFFF';
+            context.font = 'bold 28px Inter';
+            context.textAlign = 'left';
+            context.textBaseline = 'middle';
+            
+            const timeString = new Date().toLocaleTimeString('en-US', { 
+                hour: '2-digit', minute: '2-digit', hour12: false 
+            });
+            context.fillText(timeString, 30, statusHeight / 2);
+
+            context.textAlign = 'right';
+            context.font = '24px Inter';
+            context.fillText('🔋 📶 📡', canvas.width - 30, statusHeight / 2);
+        }
+
+        function drawClockAndDate(context, canvas) {
+            context.fillStyle = '#FFFFFF';
+            context.font = 'bold 96px Inter';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            const now = new Date();
+            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                             now.getMinutes().toString().padStart(2, '0');
+            
+            context.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            context.shadowBlur = 10;
+            context.shadowOffsetX = 2;
+            context.shadowOffsetY = 2;
+            
+            context.fillText(timeString, canvas.width / 2, canvas.height * 0.25);
+            
+            context.shadowColor = 'transparent';
+            context.shadowBlur = 0;
+            context.shadowOffsetX = 0;
+            context.shadowOffsetY = 0;
+
+            context.font = '36px Inter';
+            const dateString = now.toLocaleDateString('en-US', { 
+                weekday: 'long', month: 'long', day: 'numeric' 
+            });
+            context.fillText(dateString, canvas.width / 2, canvas.height * 0.25 + 80);
+        }
+
+        function drawAppGrid(context, canvas) {
+            const iconSize = 120;
+            const padding = 40;
+            const startY = canvas.height * 0.45;
+            const startX = (canvas.width - iconSize * 3 - padding * 2) / 2;
+
+            const apps = [
+                { name: 'About', emoji: '👨‍💻', color: phoneColors.icons[0], action: 'appA_about' },
+                { name: 'Projects', emoji: '🚀', color: phoneColors.icons[1], action: 'appB' },
+                { name: 'Skills', emoji: '⚡', color: phoneColors.icons[2], action: 'appC' },
+                { name: 'Contact', emoji: '📞', color: phoneColors.icons[3], action: 'appD_contact' },
+                { name: 'Resume', emoji: '📄', color: phoneColors.icons[4], action: 'resume' },
+                { name: 'Gallery', emoji: '🎨', color: phoneColors.icons[5], action: 'gallery' }
+            ];
+
+            apps.forEach((app, index) => {
+                const row = Math.floor(index / 3);
+                const col = index % 3;
+                const x = startX + col * (iconSize + padding);
+                const y = startY + row * (iconSize + padding);
+                drawEnhancedIcon(context, x, y, iconSize, app, canvas);
+            });
+        }
+
+        function drawEnhancedIcon(context, x, y, size, app, canvas) {
+            // Enhanced icon with better shadows and gradients
+            context.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            context.fillRect(x + 3, y + 3, size, size);
+
+            const gradient = context.createLinearGradient(x, y, x + size, y + size);
+            gradient.addColorStop(0, app.color);
+            gradient.addColorStop(1, adjustBrightness(app.color, -15));
+            context.fillStyle = gradient;
+            
+            drawRoundedRect(context, x, y, size, size, 24);
+            context.fill();
+
+            // Icon border
+            context.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            context.lineWidth = 2;
+            context.stroke();
+
+            context.fillStyle = '#FFFFFF';
+            context.font = `${size * 0.4}px Inter`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(app.emoji, x + size / 2, y + size / 2 - 10);
+
+            context.font = `${size * 0.12}px Inter`;
+            context.fillText(app.name, x + size / 2, y + size + 25);
+
+            // Store click region with proper action handling
+            canvas.iconRegions[app.name] = {
+                x, y, width: size, height: size,
+                action: () => {
+                    playClickSound();
+                    console.log(`Clicked ${app.name} with action: ${app.action}`); // Debug log
+                    if (app.action === 'resume') {
+                        showNotification('Opening Resume...', 'info');
+                        window.open('#', '_blank');
+                    } else if (app.action === 'gallery') {
+                        showNotification('Opening Gallery...', 'info');
+                    } else {
+                        // Navigate to app screen
+                        currentScreen = app.action;
+                        updateScreenTexture();
+                        showNotification(`Opening ${app.name}...`, 'success');
+                        playTransitionSound();
+                    }
+                }
+            };
+        }
+
+        function drawDock(context, canvas) {
+            const dockHeight = 120;
+            const dockY = canvas.height - dockHeight - 40;
+            
+            context.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            drawRoundedRect(context, 40, dockY, canvas.width - 80, dockHeight, 30);
+            context.fill();
+
+            context.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            context.lineWidth = 2;
+            context.stroke();
+        }
+
+        function drawRoundedRect(context, x, y, width, height, radius) {
+            context.beginPath();
+            context.moveTo(x + radius, y);
+            context.arcTo(x + width, y, x + width, y + height, radius);
+            context.arcTo(x + width, y + height, x, y + height, radius);
+            context.arcTo(x, y + height, x, y, radius);
+            context.arcTo(x, y, x + width, y, radius);
+            context.closePath();
+        }
+
+        function adjustBrightness(hex, percent) {
+            const num = parseInt(hex.replace("#", ""), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = Math.max(0, Math.min(255, (num >> 16) + amt));
+            const G = Math.max(0, Math.min(255, (num >> 8 & 0x00FF) + amt));
+            const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
+            return "#" + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+        }
+
+        function drawAppScreen(context, canvas, title, contentLines, linkMap = {}) {
+            const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(0.5, '#764ba2');
+            gradient.addColorStop(1, '#5b2c87');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Header
+            context.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            context.fillRect(0, 0, canvas.width, 150);
+
+            // Title
+            context.fillStyle = '#ecf0f1';
+            context.font = 'bold 64px Inter';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            context.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            context.shadowBlur = 8;
+            context.shadowOffsetY = 2;
+            
+            context.fillText(title, canvas.width / 2, 75);
+            
+            context.shadowColor = 'transparent';
+            context.shadowBlur = 0;
+            context.shadowOffsetY = 0;
+
+            // Content
+            context.font = '36px Inter';
+            context.textAlign = 'center';
+            let yOffset = 250;
+            
+            contentLines.forEach((line) => {
+                if (line === '') {
+                    yOffset += 25;
+                } else if (line.startsWith('👨‍💻') || line.startsWith('🚀') || line.startsWith('⚡') || line.startsWith('📬')) {
+                    context.font = 'bold 48px Inter';
+                    context.fillStyle = '#3498db';
+                    context.fillText(line, canvas.width / 2, yOffset);
+                    context.font = '36px Inter';
+                    context.fillStyle = '#ecf0f1';
+                    yOffset += 70;
+                } else if (line.startsWith('📍') || line.startsWith('📧')) {
+                    context.fillStyle = '#ecf0f1';
+                    context.fillText(line, canvas.width / 2, yOffset);
+                    yOffset += 50;
+                } else if (line.startsWith('🔗')) {
+                    const linkText = line.substring(line.indexOf(' ') + 1);
+                    const linkUrl = linkMap[linkText];
+                    
+                    context.fillStyle = '#3498db';
+                    context.fillText(line, canvas.width / 2, yOffset);
+                    
+                    const textWidth = context.measureText(line).width;
+                    canvas.iconRegions[linkText] = {
+                        x: canvas.width / 2 - textWidth / 2,
+                        y: yOffset - 18,
+                        width: textWidth,
+                        height: 36,
+                        action: () => {
+                            if (linkUrl) {
+                                window.open(linkUrl, '_blank');
+                                showNotification(`Opening ${linkText}...`, 'success');
+                                playConfirmationSound();
+                            }
+                        }
+                    };
+                    yOffset += 50;
+                } else {
+                    context.fillStyle = '#ecf0f1';
+                    context.fillText(line, canvas.width / 2, yOffset);
+                    yOffset += 60;
+                }
+            });
+
+            // Enhanced back button
+            const backButtonWidth = 160;
+            const backButtonHeight = 80;
+            const backButtonX = (canvas.width - backButtonWidth) / 2;
+            const backButtonY = canvas.height - 120;
+
+            context.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            drawRoundedRect(context, backButtonX + 4, backButtonY + 4, backButtonWidth, backButtonHeight, 16);
+            context.fill();
+
+            const buttonGradient = context.createLinearGradient(backButtonX, backButtonY, backButtonX, backButtonY + backButtonHeight);
+            buttonGradient.addColorStop(0, '#e74c3c');
+            buttonGradient.addColorStop(1, '#c0392b');
+            context.fillStyle = buttonGradient;
+            drawRoundedRect(context, backButtonX, backButtonY, backButtonWidth, backButtonHeight, 16);
+            context.fill();
+
+            context.fillStyle = '#FFFFFF';
+            context.font = 'bold 32px Inter';
+            context.fillText('← Back', backButtonX + backButtonWidth / 2, backButtonY + backButtonHeight / 2);
+
+            // Store back button click region
+            canvas.iconRegions['Back'] = {
+                x: backButtonX, 
+                y: backButtonY, 
+                width: backButtonWidth, 
+                height: backButtonHeight,
+                action: () => {
+                    console.log('Back button clicked'); // Debug log
+                    navigateToHome();
+                }
+            };
+        }
+
+        function createLogoTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const context = canvas.getContext('2d');
+
+            context.fillStyle = 'transparent';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            const gradient = context.createLinearGradient(0, 0, canvas.width, 0);
+            gradient.addColorStop(0, '#00d4ff');
+            gradient.addColorStop(1, '#667eea');
+            context.fillStyle = gradient;
+            context.font = 'bold 80px Inter';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            context.shadowColor = '#00d4ff';
+            context.shadowBlur = 20;
+            context.fillText('MAHESH', canvas.width / 2, canvas.height / 2);
+            
+            context.shadowColor = 'transparent';
+            context.shadowBlur = 0;
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function createGradientTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const context = canvas.getContext('2d');
+
+            const gradient = context.createLinearGradient(0, canvas.height, canvas.width, 0);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(0.5, '#764ba2');
+            gradient.addColorStop(1, '#5b2c87');
+
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        /**
+         * Enhanced Three.js initialization with better performance
+         */
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = createGradientTexture();
+            scene.fog = new THREE.Fog(0x1a1a2e, 10, 50);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            
+            document.body.appendChild(renderer.domElement);
+            onWindowResize();
+
+            // Enhanced lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 50;
+            scene.add(directionalLight);
+
+            const rimLight = new THREE.DirectionalLight(0x00d4ff, 0.5);
+            rimLight.position.set(-5, 0, -5);
+            scene.add(rimLight);
+
+            createPhoneModel();
+            initAudio();
+            setupEventListeners();
+
+            phoneModel.scale.set(initialPhoneScale, initialPhoneScale, initialPhoneScale);
+            isPhoneGrowing = true;
+            playGrowStartSound();
+        }
+
+        function createPhoneModel() {
+            phoneModel = new THREE.Group();
+
+            // Enhanced phone body with better materials
+            const bodyGeometry = new THREE.BoxGeometry(1.0, 2.0, 0.1);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+                color: phoneColors.body,
+                roughness: 0.3,
+                metalness: 0.8,
+                envMapIntensity: 1.0
+            });
+            const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            bodyMesh.castShadow = true;
+            bodyMesh.receiveShadow = true;
+            phoneModel.add(bodyMesh);
+
+            // Screen with better positioning
+            const screenGeometry = new THREE.PlaneGeometry(0.9, 1.8);
+            const screenTexture = createScreenTexture(currentScreen);
+            const screenMaterial = new THREE.MeshBasicMaterial({ 
+                map: screenTexture,
+                transparent: false
+            });
+            screenMesh = new THREE.Mesh(screenGeometry, screenMaterial);
+            screenMesh.position.z = 0.051;
+            phoneModel.add(screenMesh);
+
+            // Enhanced camera system
+            const cameraBumpGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.05, 32);
+            const cameraBumpMaterial = new THREE.MeshStandardMaterial({
+                color: phoneColors.cameraBump,
+                roughness: 0.2,
+                metalness: 0.9
+            });
+            const cameraBumpMesh = new THREE.Mesh(cameraBumpGeometry, cameraBumpMaterial);
+            cameraBumpMesh.position.set(0, 0.8, -0.051);
+            cameraBumpMesh.rotation.x = Math.PI / 2;
+            cameraBumpMesh.castShadow = true;
+            phoneModel.add(cameraBumpMesh);
+
+            // Camera lenses with better materials
+            const lensGeometry = new THREE.CylinderGeometry(0.06, 0.06, 0.03, 32);
+            const lensMaterial = new THREE.MeshStandardMaterial({
+                color: 0x000000,
+                roughness: 0.1,
+                metalness: 0.9,
+                transparent: true,
+                opacity: 0.9
+            });
+
+            [0.08, -0.08].forEach((offset, i) => {
+                const lens = new THREE.Mesh(lensGeometry, lensMaterial);
+                lens.position.set(0, 0.8 + offset, -0.01);
+                lens.rotation.x = Math.PI / 2;
+                lens.castShadow = true;
+                phoneModel.add(lens);
+            });
+
+            // Enhanced buttons
+            const buttonMaterial = new THREE.MeshStandardMaterial({
+                color: phoneColors.buttons,
+                roughness: 0.4,
+                metalness: 0.8
+            });
+
+            // Power button
+            const powerButton = new THREE.Mesh(
+                new THREE.BoxGeometry(0.05, 0.2, 0.02),
+                buttonMaterial
+            );
+            powerButton.position.set(0.525, 0.2, 0);
+            powerButton.castShadow = true;
+            phoneModel.add(powerButton);
+
+            // Volume buttons
+            [0.4, 0.1].forEach(yPos => {
+                const volumeButton = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.05, 0.15, 0.01),
+                    buttonMaterial
+                );
+                volumeButton.position.set(-0.525, yPos, 0);
+                volumeButton.castShadow = true;
+                phoneModel.add(volumeButton);
+            });
+
+            // Speaker/notch
+            const notch = new THREE.Mesh(
+                new THREE.BoxGeometry(0.3, 0.05, 0.01),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            notch.position.set(0, 0.95, 0.052);
+            phoneModel.add(notch);
+
+            // Enhanced logo
+            const logoTexture = createLogoTexture();
+            const logoMaterial = new THREE.MeshBasicMaterial({ 
+                map: logoTexture, 
+                transparent: true, 
+                opacity: 0.8 
+            });
+            const logoPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.5, 0.25), 
+                logoMaterial
+            );
+            logoPlane.position.set(0, -0.7, -0.051);
+            logoPlane.rotation.y = Math.PI;
+            phoneModel.add(logoPlane);
+
+            scene.add(phoneModel);
+        }
+
+        function updateScreenTexture() {
+            if (screenMesh) {
+                const newTexture = createScreenTexture(currentScreen);
+                screenMesh.material.map.dispose();
+                screenMesh.material.map = newTexture;
+                screenMesh.material.needsUpdate = true;
+            }
+        }
+
+        function setupEventListeners() {
+            const canvas = renderer.domElement;
+            
+            // Mouse events
+            canvas.addEventListener('mousedown', onMouseDown, false);
+            canvas.addEventListener('mouseup', onMouseUp, false);
+            canvas.addEventListener('mousemove', onMouseMove, false);
+            canvas.addEventListener('click', onClick, false);
+            canvas.addEventListener('wheel', onWheel, { passive: false });
+            
+            // Touch events with better passive handling
+            canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+            canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+            canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+
+            window.addEventListener('resize', onWindowResize, false);
+
+            // Control buttons
+            document.getElementById('resetViewButton').addEventListener('click', () => {
+                resetView();
+                playConfirmationSound();
+            });
+            
+            document.getElementById('autoRotateButton').addEventListener('click', () => {
+                autoRotate = !autoRotate;
+                showNotification(`Auto-rotate ${autoRotate ? 'ON' : 'OFF'}`, 'info');
+                playConfirmationSound();
+            });
+
+            document.getElementById('performanceButton').addEventListener('click', () => {
+                showPerformance = !showPerformance;
+                const fpsCounter = document.getElementById('fps-counter');
+                fpsCounter.classList.toggle('visible', showPerformance);
+                showNotification(`Performance ${showPerformance ? 'ON' : 'OFF'}`, 'info');
+                playConfirmationSound();
+            });
+
+            document.getElementById('audioToggleButton').addEventListener('click', () => {
+                audioEnabled = !audioEnabled;
+                document.getElementById('audioToggleButton').textContent = audioEnabled ? '🔊' : '🔇';
+                showNotification(`Audio ${audioEnabled ? 'Enabled' : 'Disabled'}`, 'info');
+                
+                if (audioEnabled && Tone.context.state === 'suspended') {
+                    Tone.context.resume().then(() => startBackgroundMusic());
+                } else if (!audioEnabled) {
+                    stopBackgroundMusic();
+                } else if (audioEnabled) {
+                    startBackgroundMusic();
+                }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            camera.position.z = camera.aspect < 1 ? 2.5 : 1.8;
+
+            if (scene && scene.background instanceof THREE.CanvasTexture) {
+                scene.background = createGradientTexture();
+            }
+        }
+
+        // Enhanced interaction handlers
+        function onMouseDown(event) {
+            isDragging = true;
+            document.body.classList.add('dragging');
+            previousMouseX = event.clientX;
+            previousMouseY = event.clientY;
+        }
+
+        function onMouseUp() {
+            isDragging = false;
+            document.body.classList.remove('dragging');
+        }
+
+        function onMouseMove(event) {
+            if (!isDragging) return;
+
+            const deltaX = event.clientX - previousMouseX;
+            const deltaY = event.clientY - previousMouseY;
+
+            phoneModel.rotation.y += deltaX * 0.008;
+            phoneModel.rotation.x += deltaY * 0.008;
+
+            // Clamp rotation to prevent flipping
+            phoneModel.rotation.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, phoneModel.rotation.x));
+
+            previousMouseX = event.clientX;
+            previousMouseY = event.clientY;
+        }
+
+        function onClick(event) {
+            console.log('Click detected'); // Debug log
+            
+            // Calculate mouse/touch position in normalized device coordinates
+            const clientX = event.clientX || event.pageX || 0;
+            const clientY = event.clientY || event.pageY || 0;
+            
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(phoneModel.children);
+
+            console.log('Intersects found:', intersects.length); // Debug log
+
+            for (let intersect of intersects) {
+                if (intersect.object === screenMesh) {
+                    console.log('Screen clicked'); // Debug log
+                    
+                    const uv = intersect.uv;
+                    if (!uv) {
+                        console.log('No UV coordinates'); // Debug log
+                        continue;
+                    }
+                    
+                    const canvasX = uv.x * screenMesh.material.map.image.width;
+                    const canvasY = (1 - uv.y) * screenMesh.material.map.image.height;
+
+                    console.log(`Click coordinates: ${canvasX}, ${canvasY}`); // Debug log
+
+                    const screenCanvas = screenMesh.material.map.image;
+                    if (!screenCanvas.iconRegions) {
+                        console.log('No icon regions found'); // Debug log
+                        continue;
+                    }
+                    
+                    console.log('Available icon regions:', Object.keys(screenCanvas.iconRegions)); // Debug log
+                    
+                    for (const appName in screenCanvas.iconRegions) {
+                        const region = screenCanvas.iconRegions[appName];
+                        console.log(`Checking region ${appName}:`, region); // Debug log
+                        
+                        if (canvasX >= region.x && canvasX <= region.x + region.width &&
+                            canvasY >= region.y && canvasY <= region.y + region.height) {
+                            
+                            console.log(`Clicked on ${appName}`); // Debug log
+                            
+                            // Add visual feedback
+                            showNotification(`Tapped ${appName}`, 'info');
+                            
+                            // Small delay to show feedback before action
+                            setTimeout(() => {
+                                if (region.action && typeof region.action === 'function') {
+                                    region.action();
+                                } else {
+                                    console.error('No valid action for', appName);
+                                }
+                            }, 100);
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        function onWheel(event) {
+            event.preventDefault();
+            camera.position.z += event.deltaY * 0.01;
+            camera.position.z = Math.max(1.0, Math.min(5.0, camera.position.z));
+        }
+
+        let touchStartTime = 0;
+        let touchMoved = false;
+        const TOUCH_THRESHOLD = 10; // pixels
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        function onTouchStart(event) {
+            event.preventDefault();
+            if (event.touches.length === 1) {
+                touchStartTime = Date.now();
+                touchMoved = false;
+                touchStartX = event.touches[0].clientX;
+                touchStartY = event.touches[0].clientY;
+                
+                isDragging = true;
+                document.body.classList.add('dragging');
+                previousMouseX = event.touches[0].clientX;
+                previousMouseY = event.touches[0].clientY;
+            }
+        }
+
+        function onTouchEnd(event) {
+            event.preventDefault();
+            const touchEndTime = Date.now();
+            const touchDuration = touchEndTime - touchStartTime;
+            
+            // If it was a quick tap without much movement, treat it as a click
+            if (!touchMoved && touchDuration < 300) {
+                // Create a synthetic click event for touch
+                const touch = event.changedTouches[0];
+                const clickEvent = {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                };
+                onClick(clickEvent);
+            }
+            
+            isDragging = false;
+            document.body.classList.remove('dragging');
+            touchMoved = false;
+        }
+
+        function onTouchMove(event) {
+            event.preventDefault();
+            if (event.touches.length !== 1) return;
+
+            const touch = event.touches[0];
+            const deltaX = touch.clientX - previousMouseX;
+            const deltaY = touch.clientY - previousMouseY;
+            
+            // Check if touch has moved significantly
+            const totalMoveX = Math.abs(touch.clientX - touchStartX);
+            const totalMoveY = Math.abs(touch.clientY - touchStartY);
+            
+            if (totalMoveX > TOUCH_THRESHOLD || totalMoveY > TOUCH_THRESHOLD) {
+                touchMoved = true;
+            }
+
+            if (isDragging && touchMoved) {
+                phoneModel.rotation.y += deltaX * 0.008;
+                phoneModel.rotation.x += deltaY * 0.008;
+                phoneModel.rotation.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, phoneModel.rotation.x));
+
+                previousMouseX = touch.clientX;
+                previousMouseY = touch.clientY;
+            }
+        }
+
+        function resetView() {
+            phoneModel.rotation.set(0, 0, 0);
+            camera.position.z = (window.innerWidth / window.innerHeight < 1) ? 2.5 : 1.8;
+            autoRotate = false;
+            showNotification('View Reset!', 'success');
+        }
+
+        /**
+         * Enhanced animation loop with performance monitoring
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Performance monitoring
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime >= lastTime + 1000) {
+                fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                frameCount = 0;
+                lastTime = currentTime;
+                
+                if (showPerformance) {
+                    document.getElementById('fps-counter').textContent = `FPS: ${fps}`;
+                }
+            }
+
+            // Phone growth animation
+            if (isPhoneGrowing) {
+                phoneModel.scale.x += phoneGrowthSpeed;
+                phoneModel.scale.y += phoneGrowthSpeed;
+                phoneModel.scale.z += phoneGrowthSpeed;
+
+                if (phoneModel.scale.x >= finalPhoneScale) {
+                    phoneModel.scale.set(finalPhoneScale, finalPhoneScale, finalPhoneScale);
+                    isPhoneGrowing = false;
+                    playConfirmationSound();
+                    showNotification('3D Portfolio Loaded!', 'success');
+                    document.getElementById('audioToggleButton').classList.add('visible');
+                }
+            }
+
+            // Auto-rotation with smooth easing
+            if (autoRotate) {
+                phoneModel.rotation.y += 0.003;
+            }
+
+            // Update clock on home screen (throttled to every second)
+            if (currentScreen === 'home' && Math.floor(currentTime / 1000) !== Math.floor((currentTime - 16) / 1000)) {
+                updateScreenTexture();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Hacking screen implementation
+        const hackingOutput = document.getElementById('hacking-output');
+        const hackingScreen = document.getElementById('hacking-screen');
+        const cursor = document.querySelector('.cursor');
+        const loadingScreen = document.getElementById('loading');
+        const audioOverlay = document.getElementById('audio-overlay');
+        const enableAudioButton = document.getElementById('enableAudioButton');
+
+        const hackingLines = [
+            "Initializing Mahesh's Portfolio System...",
+            "Loading professional profile and credentials...",
+            "Connecting to development environments...",
+            "Fetching MERN stack and Python projects...",
+            "Rendering interactive 3D experience...",
+            "Syncing technical skills database...",
+            "Deploying responsive UI components...",
+            "Optimizing performance and user experience...",
+            "Validating certifications and achievements...",
+            "✓ Portfolio system ready. Welcome aboard!"
+        ];
+
+        let lineIndex = 0;
+        let charIndex = 0;
+        const typingSpeed = 3;
+        const lineDelay = 300;
+
+        async function startAudioAndHideOverlay() {
+            if (Tone.context.state !== 'running') {
+                try {
+                    await Tone.start();
+                    console.log('Audio context started successfully');
+                    audioEnabled = true;
+                } catch (error) {
+                    console.error('Failed to start audio context:', error);
+                    showNotification('Audio initialization failed', 'error');
+                    audioEnabled = false;
+                }
+            }
+            audioOverlay.classList.add('hidden');
+            typeHackingText();
+        }
+
+        audioOverlay.addEventListener('click', startAudioAndHideOverlay);
+        enableAudioButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startAudioAndHideOverlay();
+        });
+
+        function typeHackingText() {
+            if (lineIndex < hackingLines.length) {
+                const currentLine = hackingLines[lineIndex];
+                if (charIndex < currentLine.length) {
+                    hackingOutput.textContent += currentLine[charIndex];
+                    playTypingSound();
+                    charIndex++;
+                    setTimeout(typeHackingText, typingSpeed);
+                } else {
+                    hackingOutput.textContent += '\n';
+                    charIndex = 0;
+                    lineIndex++;
+                    setTimeout(typeHackingText, lineDelay);
+                }
+            } else {
+                cursor.style.display = 'none';
+                hackingScreen.style.opacity = '0';
+                setTimeout(() => {
+                    hackingScreen.style.display = 'none';
+                    loadingScreen.style.display = 'none';
+                    
+                    init();
+                    animate();
+
+                    renderer.domElement.classList.add('visible');
+                    document.getElementById('controls').classList.add('visible');
+
+                    if (audioEnabled && Tone.context.state === 'running') {
+                        startBackgroundMusic();
+                    }
+                }, 2500);
+            }
+        }
+
+        // Initialize audio when page loads
+        initAudio();
+    </script>
+</body>
+</html>
